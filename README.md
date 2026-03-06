@@ -32,12 +32,13 @@ It's hard to successfully build and install `flash-attn`! After some trials I fi
 
 
 **Practice:**
-When get a new machine, save the following content in `~/start.sh` and run `bash ~/start.sh` to install & verify if nano-vllm works as expected:
+When get a new machine, after ensuring `nvcc>11.8` is correctly installed, save the following content in `~/start.sh` and run `bash ~/start.sh` to install & verify if nano-vllm works as expected:
 
 ```bash
 # ===== BEGIN INSTALLATION =====
 # install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
 
 # clone nano-vllm (with modified pyproject.toml)
 git clone https://github.com/GeeeekExplorer/nano-vllm.git
@@ -87,9 +88,8 @@ uv pip install -e .
 
 # ===== BEGIN DEMO =====
 # download model
-huggingface-cli download --resume-download Qwen/Qwen3-0.6B \
-  --local-dir ~/huggingface/Qwen3-0.6B/ \
-  --local-dir-use-symlinks False
+uv pip install huggingface_hub
+hf download Qwen/Qwen3-0.6B --local-dir ~/huggingface/Qwen3-0.6B
 
 # create and run demo
 cat > test.py <<EOF
@@ -111,8 +111,32 @@ uv run python test.py
 # ===== END DEMO =====
 ```
 
-
-
+Trouble Shoot:
+- ```
+  [rank0]:   File "~/nano-vllm/nanovllm/models/qwen3.py", line 54, in __init__
+  [rank0]:     self.rotary_emb = get_rope(
+  [rank0]:                       ^^^^^^^^^
+  [rank0]: TypeError: unhashable type: 'dict'
+  ```
+  solution: modify the `get_rope()` function in `layers/rotary_embedding.py`:
+  ```python
+  # @lru_cache(1)
+  def get_rope(
+      head_size: int,
+      rotary_dim: int,
+      max_position: int,
+      base: float,
+      rope_scaling: dict | None = None,
+  ):
+      # assert rope_scaling is None
+      rotary_emb = RotaryEmbedding(head_size, rotary_dim, max_position, base)
+      return rotary_emb
+  ```
+- ```
+  /tmp/tmpeea6lbgo/cuda_utils.c:5:10: fatal error: Python.h: No such file or directory
+    5 | #include <Python.h>
+  ```
+  solution: manually install python dev package to provide the header file: `sudo apt install python3.12-dev`
 
 ## Benchmark
 
